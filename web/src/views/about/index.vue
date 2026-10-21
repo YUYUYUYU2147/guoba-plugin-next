@@ -24,7 +24,7 @@ const links = [
   {
     title: '锅巴插件仓库',
     desc: 'Guoba-Plugin 源码与 issue',
-    url: 'https://github.com/cchanlan/guoba-plugin-next',
+    url: 'https://github.com/YUYUYUYU2147/guoba-plugin-next',
     icon: 'ant-design:code-outlined',
   },
   {

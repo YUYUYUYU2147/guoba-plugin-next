@@ -16,7 +16,7 @@ const _STATUS = {
   GIT_NO_UPDATE: 'GIT_NO_UPDATE',
 }
 
-const REPO_URL = 'https://github.com/cchanlan/guoba-plugin-next.git'
+const REPO_URL = 'https://github.com/YUYUYUYU2147/guoba-plugin-next.git'
 const MAX_FORWARD_NODES = 100
 
 let isChecked = false

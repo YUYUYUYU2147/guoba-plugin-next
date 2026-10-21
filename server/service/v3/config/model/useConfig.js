@@ -584,14 +584,45 @@ const baseConfig = {
 
 const groupConfig = () => {
   const funOptions = []
+  const onlyReplyAtWhitelistOptions = []
   for (let item of loader.priority) {
     if (item.hasOwnProperty('name') && item.name) {
       if (!funOptions.find(i => i.value === item.name)) {
         funOptions.push({value: item.name})
       }
     }
+    for (let rule of item.plugin?.rule || []) {
+      if (!rule?.reg || !rule?.fnc) continue
+      const value = `${item.name || item.key}|${rule.fnc}|${rule.reg.source || rule.reg}`
+      if (!onlyReplyAtWhitelistOptions.find(i => i.value === value)) {
+        onlyReplyAtWhitelistOptions.push({
+          label: `${item.name || item.key} / ${rule.fnc} / ${rule.reg}`,
+          value,
+        })
+      }
+    }
   }
   const funComponent = funOptions.length === 0 ? 'GTags' : 'Select'
+  const onlyReplyAtWhitelistComponent = onlyReplyAtWhitelistOptions.length === 0 ? 'GTags' : 'Select'
+  const adapterGroup = [...(CfgAdapter['groupConfig'].group ?? [])]
+  const onlyReplyAtWhitelistSchema = {
+    field: 'onlyReplyAtWhitelist',
+    label: '只关注At白名单',
+    component: onlyReplyAtWhitelistComponent,
+    bottomHelpMessage: '开启“只关注At”后，允许不@/不带别名也响应的插件指令。可下拉选择，也可手写：插件名|指令正则 或 插件名|方法名|指令正则',
+    componentProps: {
+      allowAdd: true,
+      allowDel: true,
+      mode: 'multiple',
+      options: onlyReplyAtWhitelistOptions,
+    },
+  }
+  const aliasIndex = adapterGroup.findIndex(i => i.field === 'botAlias')
+  if (aliasIndex >= 0) {
+    adapterGroup.splice(aliasIndex + 1, 0, onlyReplyAtWhitelistSchema)
+  } else {
+    adapterGroup.push(onlyReplyAtWhitelistSchema)
+  }
   return {
     key: 'group',
     title: '群组配置',
@@ -609,7 +640,7 @@ const groupConfig = () => {
         addBtnText: '新增群配置',
         promptProps: addGroupPromptProps,
         schemas: [
-          ...(CfgAdapter['groupConfig'].group ?? []),
+          ...adapterGroup,
           {
             field: 'addPrivate',
             label: '私聊添加',

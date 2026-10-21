@@ -49,7 +49,7 @@ export default class ConfigServiceImpl extends IConfigService {
   ]
   needHandleFieldKey = [
     'masterQQ', 'disableAdopt', 'whiteGroup', 'blackGroup', 'blackQQ',
-    'whiteQQ', 'blackUser', 'whiteUser', 'botAlias', 'enable', 'disable',
+    'whiteQQ', 'blackUser', 'whiteUser', 'botAlias', 'onlyReplyAtWhitelist', 'enable', 'disable',
   ]
 
   /**

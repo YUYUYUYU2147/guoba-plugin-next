@@ -375,6 +375,7 @@ async function doMoveConfig (config) {
         singleCD: temp.singleCD,
         onlyReplyAt: temp.onlyReplyAt,
         botAlias: Array.isArray(temp.botAlias) ? temp.botAlias : temp.botAlias ? [temp.botAlias] : [],
+        onlyReplyAtWhitelist: Array.isArray(temp.onlyReplyAtWhitelist) ? temp.onlyReplyAtWhitelist : temp.onlyReplyAtWhitelist ? [temp.onlyReplyAtWhitelist] : [],
         imgAddLimit: temp.imgAddLimit,
         imgMaxSize: temp.imgMaxSize
       }
@@ -403,6 +404,9 @@ async function doMoveConfig (config) {
         }
         if (groupCfg.botAlias) {
           tempCfg.botAlias = Array.isArray(groupCfg.botAlias) ? groupCfg.botAlias : [groupCfg.botAlias]
+        }
+        if (groupCfg.onlyReplyAtWhitelist) {
+          tempCfg.onlyReplyAtWhitelist = Array.isArray(groupCfg.onlyReplyAtWhitelist) ? groupCfg.onlyReplyAtWhitelist : [groupCfg.onlyReplyAtWhitelist]
         }
         if (groupCfg.imgAddLimit) {
           tempCfg.imgAddLimit = groupCfg.imgAddLimit

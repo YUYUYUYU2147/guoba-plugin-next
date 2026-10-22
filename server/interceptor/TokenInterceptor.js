@@ -26,6 +26,9 @@ const queryTokenAllow = [
   new RegExp('^/api/custom-page/asset/[^/]+/[^/]+$'),
   new RegExp('^/api/sandbox/asset/[^/]+$'),
   new RegExp('^/api/helper/transit$'),
+  // 插件自定义页面里的图片接口：<img src> 带不上请求头，token 走 query。
+  // 只放行只读的图片类接口（game/icon、panel/img），其余 /api/custom/ 仍走 header。
+  new RegExp('^/api/custom/[^/]+/(game/icon|panel/img)$'),
 ]
 
 // 不需要拦截的路径

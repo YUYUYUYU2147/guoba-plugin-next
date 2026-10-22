@@ -106,6 +106,7 @@ export default class IPluginService extends Service {
           }
           jsPath = path.join(filePath, 'guoba.support.js')
           // 判断是否支持锅巴
+          let skipPlugin = false
           if (fs.existsSync(jsPath)) {
             try {
               // 判断是否是windows系统
@@ -125,9 +126,22 @@ export default class IPluginService extends Service {
                 throw 'supportGuoba必须要定义成一个方法！'
               }
             } catch (e) {
-              logger.error(`[Guoba] 载入"${plugin.name}"插件的"guoba.support.js"失败：` + (e.message || e))
+              const msg = String(e?.message || e)
+              /* 插件依赖的上游插件被卸载（典型：miao-plugin / wiki）时，
+                 guoba.support.js 会因 ERR_MODULE_NOT_FOUND 连带失败。
+                 这属于正常部署，记 warn 一行即可，不要把 ESM 内部堆栈刷到日志。 */
+              const missingDep = /ERR_MODULE_NOT_FOUND|Cannot find module|ERR_UNSUPPORTED_DIR_IMPORT/i.test(msg)
+              if (missingDep) {
+                /* 依赖缺失的插件整条跳过：不登记 PluginsMap、不出现在插件列表，
+                   避免前端点到它时再报一次同样的错 */
+                skipPlugin = true
+                logger.warn(`[Guoba] 跳过"${plugin.name}"：依赖的上游模块不存在（${msg.split('\n')[0].slice(0, 160)}）`)
+              } else {
+                logger.error(`[Guoba] 载入"${plugin.name}"插件的"guoba.support.js"失败：` + msg)
+              }
             }
           }
+          if (skipPlugin) continue
           PluginsMap.set(plugin.name, plugin)
           // 真实目录名，放在 pluginInfo 合并之后 —— 插件的 pluginInfo.name 常是「R插件」这类
           // 展示名（rconsole-plugin 就是），而 git 状态、更新、回滚全按目录走，

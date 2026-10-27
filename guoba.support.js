@@ -255,6 +255,31 @@ export function supportGuoba () {
           componentProps: {
             placeholder: '每行一个域名，例如：\nexample.com\nbad-site.net'
           }
+        },
+        {
+          label: '首页立绘',
+          component: 'SOFT_GROUP_BEGIN'
+        },
+        {
+          field: 'home.heroSource',
+          label: '立绘来源',
+          helpMessage: '修改后刷新首页生效',
+          bottomHelpMessage: '喵喵素材会随机抽角色图，素材上的二维码会自动抹掉；内置图是锅巴自带插画',
+          component: 'Select',
+          componentProps: {
+            options: [
+              { label: '喵喵素材（随机角色）', value: 'miao' },
+              { label: '锅巴内置图', value: 'builtin' },
+              { label: '不显示', value: 'off' }
+            ]
+          }
+        },
+        {
+          field: 'home.heroClearQr',
+          label: '抹掉素材二维码',
+          helpMessage: '把左侧水印涂白后再裁白边',
+          bottomHelpMessage: '关闭后素材原样显示',
+          component: 'Switch'
         }
       ],
       // 获取配置数据方法（用于前端填充显示数据）

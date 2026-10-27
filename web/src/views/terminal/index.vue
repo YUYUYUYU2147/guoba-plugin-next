@@ -400,6 +400,9 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   text-overflow: ellipsis;
   direction: rtl;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 45%;
   text-align: left;
 }
 
@@ -498,6 +501,16 @@ onBeforeUnmount(() => {
   border: 1px solid var(--g-border);
 }
 
+/* 提示符可能很长（cd 进深层目录后），限宽省略，别把输入框挤没 */
+.g-term-input .g-term-prompt {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .g-term-field {
   flex: 1;
   min-width: 0;
@@ -561,4 +574,22 @@ onBeforeUnmount(() => {
     display: none;
   }
 }
+@media (max-width: 560px) {
+  /* 手机端：提示符独占一行并省略，输入框整行铺开，避免路径过长把输入框挤到看不见 */
+  .g-term-input {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .g-term-input .g-term-prompt {
+    width: 100%;
+    max-width: 100%;
+    margin-right: 0;
+    font-size: 11px;
+  }
+  .g-term-field {
+    width: 100%;
+    padding: 4px 0;
+  }
+}
+
 </style>

@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import lodash from 'lodash'
-import {_paths, ApiController} from '#guoba.platform'
+import {_paths, ApiController, cfg} from '#guoba.platform'
 import {autowired, Result} from '#guoba.framework'
 
 /**
@@ -50,7 +50,13 @@ export class HomeController extends ApiController {
 
   // 随机角色图片
   async randomImage(req, res) {
-    let imgPath = this.getRandomRoleImage()
+    // 立绘来源：miao=喵喵素材随机，builtin=锅巴内置图，off=不显示
+    const source = cfg.get('home.heroSource') || 'miao'
+    if (source === 'off') {
+      res.status(204).end()
+      return Result.VOID
+    }
+    let imgPath = source === 'builtin' ? null : this.getRandomRoleImage()
     if (imgPath == null) {
       // 没装喵喵（或素材目录是空的），用锅巴自带的图兜底。
       // 这些是干净的透明底插画，不用再走 trim
@@ -87,7 +93,7 @@ export class HomeController extends ApiController {
     let buffer = null
     try {
       const sharp = (await import('sharp')).default
-      buffer = await sharp(imgPath)
+      buffer = await this.buildHeroBuffer(sharp, imgPath)
         // 必须先填白再 trim：素材的空白边有的是透明、有的是纯白，
         // 而 trim 只认左上角一种基准色，不统一的话另一侧的白边裁不掉
         .flatten({background: '#ffffff'})
@@ -108,6 +114,57 @@ export class HomeController extends ApiController {
     return buffer
   }
 
+
+  /**
+   * 抹掉素材图上的二维码水印后再裁剪。
+   *
+   * 喵喵素材（miao-plugin/resources/profile）来自米游社分享图，左侧留白区带二维码水印。
+   * trim 只按边缘颜色去白边，水印不是白色会被保留，所以先把水印那块涂白，再交给 trim 当白边一起裁掉。
+   */
+  async buildHeroBuffer(sharp, imgPath) {
+    const input = sharp(imgPath).flatten({background: '#ffffff'})
+    if (cfg.get('home.heroClearQr') === false) {
+      return input
+    }
+    try {
+      const {width: W, height: H} = await sharp(imgPath).metadata()
+      if (!W || !H) return input
+      // 水印位于左侧留白区中部，按比例取一块，正常碰不到人物
+      const left = 0
+      const top = Math.round(H * 0.23)
+      const width = Math.round(W * 0.20)
+      const height = Math.round(H * 0.26)
+      const {data, info} = await sharp(imgPath)
+        .flatten({background: '#ffffff'})
+        .extract({left, top, width, height})
+        .resize({width: 80})
+        .raw()
+        .toBuffer({resolveWithObject: true})
+      let dark = 0
+      let total = 0
+      for (let i = 0; i < data.length; i += info.channels) {
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        const mx = Math.max(r, g, b)
+        const mn = Math.min(r, g, b)
+        total++
+        if (mx < 140 && mx - mn < 50) dark++
+      }
+      // 纯白留白的图不动，避免误伤左侧构图
+      // 带咕咕牛二维码的素材，这块深色像素占比在 20% 以上；没有水印的图不到 12%
+      if (total === 0 || dark / total < 0.18) return input
+      const overlay = await sharp({create: {width, height, channels: 4, background: {r: 255, g: 255, b: 255, alpha: 1}}})
+        .png()
+        .toBuffer()
+      // 同一条 pipeline 里 composite 会晚于 trim 执行，坐标会越界，先落地成图再包回去
+      const composed = await input.composite([{input: overlay, left, top}]).png().toBuffer()
+      return sharp(composed)
+    } catch (e) {
+      logger.warn('[Guoba] 抹除首页立绘水印失败：', e.message || e)
+      return input
+    }
+  }
   /**
    * 锅巴自带的兜底立绘。
    *

@@ -143,7 +143,7 @@ export async function renderLogImage(items, options = {}) {
     footer: options.footer ?? defaultFooter(items.length),
     // 日志图以文字为主：webp 同画质比 jpeg 还小一截，且小字边缘不糊（jpeg 的色度抽样会）
     // 渲染器把 imgType 直接透传给 puppeteer 的 screenshot({type})，webp 是原生支持的类型
-    imgType: 'webp',
+    imgType: 'jpeg',
     quality: 90,
   }
   try {

@@ -291,6 +291,17 @@ export async function resetToUpstream(dir, upstream, opts = {}) {
   return runGit(['reset', '--hard', upstream], {cwd: dir, timeout: 60000, onLine: opts.onLine, onSpawn: opts.onSpawn})
 }
 
+/**
+ * 清掉未跟踪文件（强制更新用）。
+ *
+ * reset --hard 只回退已跟踪的文件，插件目录里新加的文件会留在原地，「强制更新」于是
+ * 看着像没生效。带 -d 是为了连未跟踪的子目录一起收；显式排除 node_modules，
+ * 免得丢改动时顺手把依赖删掉，还要再装一遍。
+ */
+export async function cleanUntracked(dir, opts = {}) {
+  return runGit(['clean', '-fd', '-e', 'node_modules'], {cwd: dir, timeout: 60000, onLine: opts.onLine, onSpawn: opts.onSpawn})
+}
+
 /** 回到指定 commit（回滚用） */
 export async function resetTo(dir, commit, opts = {}) {
   return runGit(['reset', '--hard', commit], {cwd: dir, timeout: 60000, onLine: opts.onLine, onSpawn: opts.onSpawn})

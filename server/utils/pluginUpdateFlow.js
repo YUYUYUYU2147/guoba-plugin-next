@@ -1,6 +1,6 @@
 import path from 'node:path'
 import {
-  commitsBetween, fastForward, fetchRepo, firstLine, readRepoInfo,
+  cleanUntracked, commitsBetween, fastForward, fetchRepo, firstLine, readRepoInfo,
   resetToUpstream, runGit, stashPop, stashPush,
 } from './gitRepo.js'
 
@@ -49,7 +49,10 @@ export async function updateRepo(dir, {mode = 'safe', log = () => {}, onSpawn} =
   }
 
   info = await readRepoInfo(dir)
-  if (info.behind === 0) {
+  // 强制更新时上游没有新提交也得动手：本地改动、未推送的提交、未跟踪文件都在要丢的范围里，
+  // 只按「已是最新」提前返回的话，用户选了强制更新却什么都没变
+  const mustDiscard = mode === 'force' && (info.dirty || info.ahead > 0 || info.untracked.length > 0)
+  if (info.behind === 0 && !mustDiscard) {
     log('已是最新')
     return {...out, status: 'up-to-date', reason: '已是最新', before: info.commit, after: info.commit}
   }
@@ -77,14 +80,18 @@ export async function updateRepo(dir, {mode = 'safe', log = () => {}, onSpawn} =
   }
 
   const advance = mode === 'force'
-    ? await resetToUpstream(dir, info.upstream, {onSpawn})
+    ? await discardLocal(dir, info.upstream, {onSpawn, log})
     : await fastForward(dir, info.upstream, {onSpawn, onLine: (l) => log(`  ${l}`, 'cmd')})
   if (!advance.ok) {
     // 快进不了基本只有一个原因：本地有没推上去的提交，历史分叉了
-    const reason = info.ahead > 0
+    let reason = info.ahead > 0
       ? `本地有 ${info.ahead} 个未推送的提交，没法快进（要么先推上去，要么用强制更新丢弃）`
       : firstLine(advance.stderr) || `git 退出码 ${advance.code}`
     log(`更新失败 —— ${reason}`, 'error')
+    if (mode !== 'force' && info.untracked.length > 0) {
+      // 未跟踪文件挡路时 git 只说 would be overwritten，看不出是哪几个文件，这里点一下
+      reason += '；本地还有 ' + info.untracked.length + ' 个未跟踪文件，可能挡住了更新，可改用「强制更新」'
+    }
     if (stashed) await popStash(dir, out, log)
     return {...out, status: 'failed', reason}
   }
@@ -93,6 +100,12 @@ export async function updateRepo(dir, {mode = 'safe', log = () => {}, onSpawn} =
   out.after = after.commit
   out.to = after.shortCommit
   out.commits = await commitsBetween(dir, out.before, out.after)
+  if (out.commits.length === 0) {
+    // 上游没有新提交，这次只是强制更新把本地东西清掉了，不能报成更新成功；
+    // 本地未推送的提交也会在这一步一并丢掉
+    log('上游没有新提交；本地改动与未推送提交已按强制更新丢弃', 'warn')
+    return {...out, status: 'up-to-date', reason: '已是最新，本地改动已丢弃'}
+  }
   log(`${out.from} → ${out.to}，共 ${out.commits.length} 个提交`)
   for (const c of out.commits.slice(0, 5)) log(`  ${c.hash} ${c.subject}`, 'cmd')
 
@@ -109,6 +122,23 @@ async function popStash(dir, out, log) {
     ? '暂存的改动已放回'
     : '暂存的改动放回时冲突了，还在 git stash 里，需要手动 git stash pop 处理',
   res.ok ? 'info' : 'warn')
+}
+
+/**
+ * 强制更新：先硬对齐上游，再把未跟踪文件清掉。
+ *
+ * 两步必须一起做 —— 只 reset 的话，插件目录里新加的文件会留下来，用户看到的就是
+ * 「选了强制更新，我的文件还在」。清不掉不算失败：代码已经对齐上游，残留文件在日志里提示。
+ */
+async function discardLocal(dir, upstream, {onSpawn, log}) {
+  const res = await resetToUpstream(dir, upstream, {onSpawn})
+  if (!res.ok) return res
+  const cleaned = await cleanUntracked(dir, {onSpawn})
+  if (!cleaned.ok) {
+    const why = firstLine(cleaned.stderr) || ('git clean 退出码 ' + cleaned.code)
+    log('已对齐上游，但未跟踪文件没清干净（' + why + '），需要手动处理', 'warn')
+  }
+  return res
 }
 
 /** 这次更新有没有动依赖文件 */

@@ -88,6 +88,7 @@ export async function updateRepo(dir, {mode = 'safe', log = () => {}, onSpawn} =
       ? `本地有 ${info.ahead} 个未推送的提交，没法快进（要么先推上去，要么用强制更新丢弃）`
       : firstLine(advance.stderr) || `git 退出码 ${advance.code}`
     log(`更新失败 —— ${reason}`, 'error')
+    if (/not uptodate|Cannot merge/i.test(String(advance.stderr))) reason += "；该文件在工作区被改过，上游同名提交也改了它，建议改用「强制更新」"
     if (mode !== 'force' && info.untracked.length > 0) {
       // 未跟踪文件挡路时 git 只说 would be overwritten，看不出是哪几个文件，这里点一下
       reason += '；本地还有 ' + info.untracked.length + ' 个未跟踪文件，可能挡住了更新，可改用「强制更新」'
@@ -131,6 +132,9 @@ async function popStash(dir, out, log) {
  * 「选了强制更新，我的文件还在」。清不掉不算失败：代码已经对齐上游，残留文件在日志里提示。
  */
 async function discardLocal(dir, upstream, {onSpawn, log}) {
+  // 未跟踪文件会在 reset 覆盖同名路径时挡路，先清一遍；清不掉不算失败，后面还有一次
+  const pre = await cleanUntracked(dir, {onSpawn})
+  if (!pre.ok) log("未跟踪文件清理失败（" + (firstLine(pre.stderr) || ("git clean 退出码 " + pre.code)) + "），仍尝试对齐上游", "warn")
   const res = await resetToUpstream(dir, upstream, {onSpawn})
   if (!res.ok) return res
   const cleaned = await cleanUntracked(dir, {onSpawn})

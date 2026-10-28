@@ -93,7 +93,10 @@ export class HomeController extends ApiController {
     let buffer = null
     try {
       const sharp = (await import('sharp')).default
-      buffer = await this.buildHeroBuffer(sharp, imgPath)
+      // await 只作用于右侧表达式的结果，写成 await this.buildHeroBuffer(...).flatten()
+      // 时对象还是 Promise，会报 flatten is not a function，这里先解出 sharp 实例再链式调用
+      const heroInput = await this.buildHeroBuffer(sharp, imgPath)
+      buffer = await heroInput
         // 必须先填白再 trim：素材的空白边有的是透明、有的是纯白，
         // 而 trim 只认左上角一种基准色，不统一的话另一侧的白边裁不掉
         .flatten({background: '#ffffff'})

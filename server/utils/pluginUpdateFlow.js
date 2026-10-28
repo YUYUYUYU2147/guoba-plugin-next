@@ -132,19 +132,44 @@ async function popStash(dir, out, log) {
  * 「选了强制更新，我的文件还在」。清不掉不算失败：代码已经对齐上游，残留文件在日志里提示。
  */
 async function discardLocal(dir, upstream, {onSpawn, log}) {
-  // 未跟踪文件会在 reset 覆盖同名路径时挡路，先清一遍；清不掉不算失败，后面还有一次
+  // 未跟踪文件会在 reset 覆盖同名路径时挡路，先清一遍；清不掉不算失败，后面还有兜底
   const pre = await cleanUntracked(dir, {onSpawn})
   if (!pre.ok) log("未跟踪文件清理失败（" + (firstLine(pre.stderr) || ("git clean 退出码 " + pre.code)) + "），仍尝试对齐上游", "warn")
-  const res = await resetToUpstream(dir, upstream, {onSpawn})
+  // 第一层：先把工作区与索引打回 HEAD。已跟踪文件的本地改动在这一步清掉，
+  // 索引与工作区也重新一致 —— 很多「not uptodate」的现场在这一步就被抹平
+  const backToHead = await runGit(["reset", "--hard", "HEAD"], {cwd: dir, timeout: 60000, onSpawn})
+  if (!backToHead.ok) {
+    log("按 HEAD 重置工作区失败（" + (firstLine(backToHead.stderr) || ("git reset 退出码 " + backToHead.code)) + "），继续尝试", "warn")
+  }
+  let res = await resetToUpstream(dir, upstream, {onSpawn})
+  // 第二层：索引处于半截状态（上一次操作中断、锁未释放）时，按 HEAD 重建索引与工作区后重试
+  if (!res.ok) {
+    const rebuild = await runGit(["read-tree", "--reset", "-u", "HEAD"], {cwd: dir, timeout: 60000, onSpawn})
+    if (rebuild.ok) {
+      log("索引与工作区已按 HEAD 重建，重试对齐上游", "warn")
+      res = await resetToUpstream(dir, upstream, {onSpawn})
+    } else {
+      log("重建索引失败（" + (firstLine(rebuild.stderr) || ("git read-tree 退出码 " + rebuild.code)) + "）", "warn")
+    }
+  }
+  // 第三层：仍然失败时，强行用上游版本覆盖工作区，再走一次 reset
+  if (!res.ok) {
+    const force = await runGit(["checkout", "-f", upstream, "--", "."], {cwd: dir, timeout: 60000, onSpawn})
+    if (force.ok) {
+      log("已按上游强制覆盖工作区，重试对齐上游", "warn")
+      res = await resetToUpstream(dir, upstream, {onSpawn})
+    } else {
+      log("强制覆盖工作区失败（" + (firstLine(force.stderr) || ("git checkout 退出码 " + force.code)) + "）", "warn")
+    }
+  }
   if (!res.ok) return res
   const cleaned = await cleanUntracked(dir, {onSpawn})
   if (!cleaned.ok) {
-    const why = firstLine(cleaned.stderr) || ('git clean 退出码 ' + cleaned.code)
-    log('已对齐上游，但未跟踪文件没清干净（' + why + '），需要手动处理', 'warn')
+    const why = firstLine(cleaned.stderr) || ("git clean 退出码 " + cleaned.code)
+    log("已对齐上游，但未跟踪文件没清干净（" + why + "），需要手动处理", "warn")
   }
   return res
 }
-
 /** 这次更新有没有动依赖文件 */
 export async function depsChanged(dir, from, to) {
   if (!from || !to || from === to) return false

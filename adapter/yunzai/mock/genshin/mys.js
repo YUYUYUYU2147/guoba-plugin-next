@@ -20,7 +20,7 @@ export class MysUser {
   static async getStatData() {
     return {
       count: {
-        total: -1
+        total: 0
       }
     }
   }
